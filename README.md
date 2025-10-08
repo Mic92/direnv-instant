@@ -1,6 +1,6 @@
 # direnv-instant
 
-Status: Alpha
+Status: Beta
 
 Non-blocking direnv integration daemon with tmux support that provides instant shell prompts by running direnv asynchronously in the background.
 
