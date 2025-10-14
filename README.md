@@ -1,7 +1,5 @@
 # direnv-instant
 
-Status: Beta
-
 Non-blocking direnv integration daemon with tmux/zellij support that provides instant shell prompts by running direnv asynchronously in the background.
 
 ## Features
