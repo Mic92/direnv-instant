@@ -21,7 +21,7 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
       - name: Setup Nix
-        uses: cachix/install-nix-action@456688f15bc354bef6d396e4a35f4f89d40bf2b7 # v31.8.2
+        uses: cachix/install-nix-action@7ec16f2c061ab07b235a7245e06ed46fe9a1cab6 # v31.8.3
       - name: Update flake inputs
         uses: mic92/update-flake-inputs@48e061c1942183b43a5f13ce83ab4ac97d790c56 # main
         with:
