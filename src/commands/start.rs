@@ -19,7 +19,8 @@ pub fn run() {
     let envrc_dir = match find_envrc() {
         Some(dir) => dir,
         None => {
-            println!("unset __DIRENV_INSTANT_CURRENT_DIR");
+            // TODO: cross-shell solution
+            println!("set --erase __DIRENV_INSTANT_CURRENT_DIR");
             run_direnv_sync(direnv, false);
             return;
         }
@@ -87,5 +88,6 @@ fn run_direnv_sync(direnv: &str, show_errors: bool) {
 fn export_path_var(name: &str, path: &Path) {
     let path_str = path.display().to_string();
     let escaped = path_str.replace('\'', r"'\''");
-    println!("export {}='{}'", name, escaped);
+    // TODO: cross-shell solution
+    println!("set {} '{}'", name, escaped);
 }
