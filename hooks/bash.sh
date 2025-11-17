@@ -55,10 +55,12 @@ if [[ -z ${__DIRENV_INSTANT_HOOKED} ]]; then
   trap '_direnv_exit_cleanup' EXIT
 
   # Register bash PROMPT_COMMAND hook
-  if [[ -z ${PROMPT_COMMAND} ]]; then
-    PROMPT_COMMAND="_direnv_hook"
-  elif [[ ! ${PROMPT_COMMAND} =~ (^|;)[[:space:]]*_direnv_hook($|;) ]]; then
-    PROMPT_COMMAND="_direnv_hook;${PROMPT_COMMAND}"
+  if [[ ";${PROMPT_COMMAND[*]:-};" != *";_direnv_hook;"* ]]; then
+    if [[ "$(declare -p PROMPT_COMMAND 2>&1)" == "declare -a"* ]]; then
+      PROMPT_COMMAND=(_direnv_hook "${PROMPT_COMMAND[@]}")
+    else
+      PROMPT_COMMAND="_direnv_hook${PROMPT_COMMAND:+;$PROMPT_COMMAND}"
+    fi
   fi
 
   # Run initial hook
