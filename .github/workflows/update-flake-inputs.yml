@@ -23,7 +23,7 @@ jobs:
       - name: Setup Nix
         uses: cachix/install-nix-action@0b0e072294b088b73964f1d72dfdac0951439dbd # v31.8.4
       - name: Update flake inputs
-        uses: mic92/update-flake-inputs@2e7d11688bebedba2ff24118f2b92fcfbb725134 # main
+        uses: mic92/update-flake-inputs@88ce6b5f8137940a937969e2cfe46f50d5cbaa49 # main
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           auto-merge: "true"
