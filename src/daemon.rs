@@ -178,7 +178,8 @@ pub fn start_daemon(direnv_cmd: &str, ctx: &DaemonContext) {
 
 pub fn direnv_export_command(direnv_cmd: &str) -> Command {
     let mut cmd = Command::new(direnv_cmd);
-    cmd.args(["export", "zsh"]);
+    // TODO: support other shells
+    cmd.args(["export", "fish"]);
     cmd
 }
 
