@@ -21,9 +21,9 @@ jobs:
         with:
           token: ${{ steps.app-token.outputs.token }}
       - name: Setup Nix
-        uses: cachix/install-nix-action@0b0e072294b088b73964f1d72dfdac0951439dbd # v31.8.4
+        uses: cachix/install-nix-action@4e002c8ec80594ecd40e759629461e26c8abed15 # v31.9.0
       - name: Update flake inputs
-        uses: mic92/update-flake-inputs@88ce6b5f8137940a937969e2cfe46f50d5cbaa49 # main
+        uses: mic92/update-flake-inputs@46f7d5530a52ebff3bad2070e012674ad9d45692 # main
         with:
           github-token: ${{ steps.app-token.outputs.token }}
           auto-merge: "true"
