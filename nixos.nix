@@ -97,9 +97,9 @@ in
       programs.direnv = {
         enable = lib.mkDefault true;
         # direnv and direnv-instant have mutually exclusive hooks
-        enableBashIntegration = lib.mkForce (!cfg.enableBashIntegration);
-        enableZshIntegration = lib.mkForce (!cfg.enableZshIntegration);
-        enableFishIntegration = lib.mkForce (!cfg.enableFishIntegration);
+        enableBashIntegration = lib.mkIf cfg.enableBashIntegration (lib.mkForce false);
+        enableZshIntegration = lib.mkIf cfg.enableZshIntegration (lib.mkForce false);
+        enableFishIntegration = lib.mkIf cfg.enableFishIntegration (lib.mkForce false);
       };
 
       environment.systemPackages = [ finalPackage ];
