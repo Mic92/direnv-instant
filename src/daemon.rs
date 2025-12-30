@@ -23,6 +23,7 @@ use std::sync::{Arc, Mutex};
 use std::{env, thread};
 
 use crate::mux::{self, Multiplexer};
+use crate::shell::Shell;
 
 const PTY_WINSIZE: Winsize = Winsize {
     ws_row: 24,
@@ -78,10 +79,11 @@ pub struct DaemonContext {
     pub temp_file: PathBuf,
     pub temp_stderr: PathBuf,
     pub multiplexer: Option<Multiplexer>,
+    pub shell: Shell,
 }
 
 impl DaemonContext {
-    pub fn new(parent_pid: i32, envrc_dir: PathBuf) -> std::io::Result<Self> {
+    pub fn new(parent_pid: i32, envrc_dir: PathBuf, shell: Shell) -> std::io::Result<Self> {
         let runtime_dir = get_runtime_dir(&envrc_dir);
 
         // Create runtime directory if it doesn't exist (needed for mkstemp)
@@ -100,6 +102,7 @@ impl DaemonContext {
             temp_file,
             temp_stderr,
             multiplexer: Multiplexer::detect(),
+            shell,
         })
     }
 }
@@ -176,9 +179,9 @@ pub fn start_daemon(direnv_cmd: &str, ctx: &DaemonContext) {
     }
 }
 
-pub fn direnv_export_command(direnv_cmd: &str) -> Command {
+pub fn direnv_export_command(direnv_cmd: &str, shell: Shell) -> Command {
     let mut cmd = Command::new(direnv_cmd);
-    cmd.args(["export", "zsh"]);
+    cmd.args(["export", shell.direnv_export_arg()]);
     cmd
 }
 
@@ -248,7 +251,7 @@ fn run_direnv(direnv_cmd: &str, ctx: &DaemonContext) {
         Ok(ForkptyResult::Parent { child, master }) => {
             parent_process(child, master, notify_pids, ctx, should_stop, pty_master)
         }
-        Ok(ForkptyResult::Child) => child_process(direnv_cmd, &ctx.temp_file),
+        Ok(ForkptyResult::Child) => child_process(direnv_cmd, &ctx.temp_file, ctx.shell),
         Err(e) => {
             eprintln!("direnv-instant: forkpty failed: {}", e);
             std::process::exit(1);
@@ -256,8 +259,8 @@ fn run_direnv(direnv_cmd: &str, ctx: &DaemonContext) {
     }
 }
 
-fn child_process(direnv_cmd: &str, temp_file: &Path) -> ! {
-    let mut command = direnv_export_command(direnv_cmd);
+fn child_process(direnv_cmd: &str, temp_file: &Path, shell: Shell) -> ! {
+    let mut command = direnv_export_command(direnv_cmd, shell);
 
     // Set up stdout redirection - if this fails, write error to stderr (PTY)
     let stdout_file = match File::create(temp_file) {
@@ -362,7 +365,7 @@ fn parent_process(
         }
     };
 
-    let completed = copy_pty_to_logfile(&master, &mut log_file, &should_stop, &ctx);
+    let completed = copy_pty_to_logfile(&master, &mut log_file, &should_stop, ctx);
     if !completed {
         let _ = kill(child, Signal::SIGTERM);
         return;

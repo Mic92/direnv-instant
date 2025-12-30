@@ -2,14 +2,16 @@ use crate::daemon::{
     DaemonContext, direnv_export_command, get_socket_path, notify_daemon, start_daemon, stop_daemon,
 };
 use crate::mux::Multiplexer;
+use crate::shell::Shell;
 use nix::unistd::getppid;
 use std::env;
 use std::os::unix::process::CommandExt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Stdio;
 
 pub fn run() {
     let direnv = "direnv";
+    let shell = Shell::from_env();
     let parent_pid = env::var("DIRENV_INSTANT_SHELL_PID")
         .ok()
         .and_then(|s| s.parse().ok())
@@ -19,8 +21,8 @@ pub fn run() {
     let envrc_dir = match find_envrc() {
         Some(dir) => dir,
         None => {
-            println!("unset __DIRENV_INSTANT_CURRENT_DIR");
-            run_direnv_sync(direnv, false);
+            shell.unset_var("__DIRENV_INSTANT_CURRENT_DIR");
+            run_direnv_sync(direnv, shell, false);
             return;
         }
     };
@@ -32,25 +34,34 @@ pub fn run() {
             stop_daemon(&get_socket_path(&current_dir));
         }
     }
-    export_path_var("__DIRENV_INSTANT_CURRENT_DIR", &envrc_dir);
+    shell.export_var(
+        "__DIRENV_INSTANT_CURRENT_DIR",
+        &envrc_dir.display().to_string(),
+    );
 
     // If not in a multiplexer, just run direnv synchronously
     if Multiplexer::detect().is_none() {
-        run_direnv_sync(direnv, true);
+        run_direnv_sync(direnv, shell, true);
         return;
     }
 
     // Set up daemon context
-    let ctx = match DaemonContext::new(parent_pid, envrc_dir) {
+    let ctx = match DaemonContext::new(parent_pid, envrc_dir, shell) {
         Ok(ctx) => ctx,
         Err(e) => {
             eprintln!("direnv-instant: Failed to create temp files: {}", e);
-            run_direnv_sync(direnv, true);
+            run_direnv_sync(direnv, shell, true);
             return;
         }
     };
-    export_path_var("__DIRENV_INSTANT_ENV_FILE", &ctx.env_file);
-    export_path_var("__DIRENV_INSTANT_STDERR_FILE", &ctx.stderr_file);
+    shell.export_var(
+        "__DIRENV_INSTANT_ENV_FILE",
+        &ctx.env_file.display().to_string(),
+    );
+    shell.export_var(
+        "__DIRENV_INSTANT_STDERR_FILE",
+        &ctx.stderr_file.display().to_string(),
+    );
 
     // Check if daemon is already running
     if ctx.socket_path.exists() && notify_daemon(&ctx.socket_path, parent_pid) {
@@ -72,8 +83,8 @@ fn find_envrc() -> Option<PathBuf> {
     }
 }
 
-fn run_direnv_sync(direnv: &str, show_errors: bool) {
-    let mut cmd = direnv_export_command(direnv);
+fn run_direnv_sync(direnv: &str, shell: Shell, show_errors: bool) {
+    let mut cmd = direnv_export_command(direnv, shell);
     if !show_errors {
         cmd.stderr(Stdio::null());
     }
@@ -82,10 +93,4 @@ fn run_direnv_sync(direnv: &str, show_errors: bool) {
 
     eprintln!("direnv-instant: Failed to exec direnv: {}", err);
     std::process::exit(1);
-}
-
-fn export_path_var(name: &str, path: &Path) {
-    let path_str = path.display().to_string();
-    let escaped = path_str.replace('\'', r"'\''");
-    println!("export {}='{}'", name, escaped);
 }

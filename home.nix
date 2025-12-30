@@ -16,6 +16,7 @@ let
 
   inherit (lib.hm.shell)
     mkBashIntegrationOption
+    mkFishIntegrationOption
     mkZshIntegrationOption
     ;
 
@@ -43,6 +44,7 @@ in
     };
 
     enableBashIntegration = mkBashIntegrationOption { inherit config; };
+    enableFishIntegration = mkFishIntegrationOption { inherit config; };
     enableZshIntegration = mkZshIntegrationOption { inherit config; };
 
     enableKittyIntegration = (mkEnableOption "kitty integration") // {
@@ -92,6 +94,7 @@ in
         enable = lib.mkDefault true;
         # direnv and direnv-instant have mutually exclusive hooks
         enableBashIntegration = lib.mkForce (!cfg.enableBashIntegration);
+        enableFishIntegration = lib.mkForce (!cfg.enableFishIntegration);
         enableZshIntegration = lib.mkForce (!cfg.enableZshIntegration);
       };
 
@@ -103,6 +106,10 @@ in
 
       programs.zsh.initContent = mkIf cfg.enableZshIntegration ''
         eval "$(direnv-instant hook zsh)"
+      '';
+
+      programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
+        direnv-instant hook fish | source
       '';
 
       programs.kitty.settings = mkIf cfg.enableKittyIntegration {

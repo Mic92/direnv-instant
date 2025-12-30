@@ -1,6 +1,7 @@
 mod commands;
 mod daemon;
 mod mux;
+mod shell;
 
 use std::env;
 use std::path::Path;
@@ -19,7 +20,7 @@ fn main() {
         }
         Some("hook") => {
             if args.len() < 3 {
-                eprintln!("Usage: {} hook <zsh|bash>", args[0]);
+                eprintln!("Usage: {} hook <bash|zsh|fish>", args[0]);
                 std::process::exit(1);
             }
             commands::hook::run(&args[2]);

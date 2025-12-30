@@ -49,6 +49,12 @@ in
       description = "Whether to enable Zsh integration.";
     };
 
+    enableFishIntegration = mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Whether to enable Fish integration.";
+    };
+
     settings = {
       use_cache = (mkEnableOption "cached environment loading for instant prompts") // {
         default = true;
@@ -93,6 +99,7 @@ in
         # direnv and direnv-instant have mutually exclusive hooks
         enableBashIntegration = lib.mkForce (!cfg.enableBashIntegration);
         enableZshIntegration = lib.mkForce (!cfg.enableZshIntegration);
+        enableFishIntegration = lib.mkForce (!cfg.enableFishIntegration);
       };
 
       environment.systemPackages = [ finalPackage ];
@@ -103,6 +110,10 @@ in
 
       programs.zsh.interactiveShellInit = mkIf cfg.enableZshIntegration ''
         eval "$(direnv-instant hook zsh)"
+      '';
+
+      programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
+        direnv-instant hook fish | source
       '';
     };
 }

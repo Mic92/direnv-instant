@@ -5,6 +5,7 @@
   direnv-instant,
   direnv,
   tmux,
+  fish,
 }:
 
 let
@@ -26,6 +27,7 @@ runCommand "direnv-instant-tests"
       pythonEnv
       direnv
       tmux
+      fish
     ];
 
     meta = with lib; {
