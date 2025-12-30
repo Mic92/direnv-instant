@@ -45,6 +45,7 @@
                 rustfmt
                 clippy
                 rust-analyzer
+                fish
               ];
             };
 

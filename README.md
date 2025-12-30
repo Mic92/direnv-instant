@@ -8,7 +8,7 @@ Non-blocking direnv integration daemon with tmux/zellij support that provides in
 - **Environment Caching**: Uses cached environment from previous load for truly instant prompts
 - **Asynchronous Loading**: Direnv runs in the background, shell gets notified when ready via SIGUSR1
 - **Multiplexer Integration**: Automatically spawns a tmux/zellij pane to show direnv output when loading takes too long
-- **Shell Support**: Works with both bash and zsh
+- **Shell Support**: Works with bash, zsh, and fish
 
 ## How It Works
 
@@ -104,14 +104,19 @@ Now add to your NixOS configuration:
 
 ### Adhoc testing
 
+For bash:
+```bash
+eval "$(nix run github:Mic92/direnv-instant -- hook bash)"
+```
+
 For zsh:
 ```bash
 eval "$(nix run github:Mic92/direnv-instant -- hook zsh)"
 ```
 
-For bash:
-```bash
-eval "$(nix run github:Mic92/direnv-instant -- hook bash)"
+For fish:
+```fish
+nix run github:Mic92/direnv-instant -- hook fish | source
 ```
 
 ### Building from Source
@@ -140,6 +145,14 @@ Add to your `~/.zshrc`:
 eval "$(direnv-instant hook zsh)"
 ```
 
+### Fish
+
+Add to your `~/.config/fish/config.fish`:
+
+```fish
+direnv-instant hook fish | source
+```
+
 ## Configuration
 
 ### Module Options
@@ -151,6 +164,7 @@ Both the Home Manager and NixOS modules support the following options under `pro
 | `enable` | bool | `false` | Enable direnv-instant |
 | `package` | package | built-in | The direnv-instant package to use |
 | `enableBashIntegration` | bool | `true` | Enable Bash shell integration |
+| `enableFishIntegration` | bool | `true` | Enable Fish shell integration |
 | `enableZshIntegration` | bool | `true` | Enable Zsh shell integration |
 | `settings.use_cache` | bool | `true` | Enable cached environment loading for instant prompts |
 | `settings.mux_delay` | int | `4` | Delay in seconds before spawning multiplexer pane |
