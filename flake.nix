@@ -52,6 +52,24 @@
               let
                 packages = lib.mapAttrs' (n: lib.nameValuePair "package-${n}") self'.packages;
                 devShells = lib.mapAttrs' (n: lib.nameValuePair "devShell-${n}") self'.devShells;
+
+                # Test that the NixOS module evaluates correctly (Linux only)
+                nixosModule =
+                  (inputs.nixpkgs.lib.nixosSystem {
+                    inherit (pkgs) system;
+                    modules = [
+                      self.nixosModules.direnv-instant
+                      (
+                        { config, ... }:
+                        {
+                          boot.loader.grub.enable = false;
+                          fileSystems."/".device = "nodev";
+                          system.stateVersion = config.system.nixos.release;
+                          programs.direnv-instant.enable = true;
+                        }
+                      )
+                    ];
+                  }).config.system.build.toplevel;
               in
               packages
               // devShells
@@ -59,6 +77,9 @@
                 tests = pkgs.callPackage ./tests.nix {
                   direnv-instant = self'.packages.direnv-instant;
                 };
+              }
+              // lib.optionalAttrs pkgs.stdenv.isLinux {
+                inherit nixosModule;
               };
           };
 
