@@ -94,9 +94,11 @@ Now add to your NixOS configuration:
 ```nix
 { inputs, pkgs, ... }:
 {
-  environment.systemPackages = [
-    inputs.direnv-instant.packages.${pkgs.stdenv.hostPlatform.system}.default
+  imports = [
+    inputs.direnv-instant.nixosModules.direnv-instant
   ];
+
+  programs.direnv-instant.enable = true;
 }
 ```
 
@@ -139,6 +141,26 @@ eval "$(direnv-instant hook zsh)"
 ```
 
 ## Configuration
+
+### Module Options
+
+Both the Home Manager and NixOS modules support the following options under `programs.direnv-instant`:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enable` | bool | `false` | Enable direnv-instant |
+| `package` | package | built-in | The direnv-instant package to use |
+| `enableBashIntegration` | bool | `true` | Enable Bash shell integration |
+| `enableZshIntegration` | bool | `true` | Enable Zsh shell integration |
+| `settings.use_cache` | bool | `true` | Enable cached environment loading for instant prompts |
+| `settings.mux_delay` | int | `4` | Delay in seconds before spawning multiplexer pane |
+| `settings.debug_log` | string | `null` | Path to debug log file for daemon output |
+
+The Home Manager module additionally supports:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `enableKittyIntegration` | bool | `config.programs.kitty.enable` | Enable Kitty terminal integration |
 
 ### Environment Variables
 
