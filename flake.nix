@@ -65,6 +65,9 @@
         flake = {
           homeModules.direnv-instant = ./home.nix;
           homeModules.default = self.homeModules.direnv-instant;
+
+          nixosModules.direnv-instant = ./nixos.nix;
+          nixosModules.default = self.nixosModules.direnv-instant;
         };
       }
     );
