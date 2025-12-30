@@ -93,9 +93,12 @@ in
       programs.direnv = {
         enable = lib.mkDefault true;
         # direnv and direnv-instant have mutually exclusive hooks
-        enableBashIntegration = lib.mkForce (!cfg.enableBashIntegration);
-        enableFishIntegration = lib.mkForce (!cfg.enableFishIntegration);
-        enableZshIntegration = lib.mkForce (!cfg.enableZshIntegration);
+        enableBashIntegration = lib.mkIf cfg.enableBashIntegration (lib.mkForce false);
+        enableZshIntegration = lib.mkIf cfg.enableZshIntegration (lib.mkForce false);
+        # Note: We cannot disable enableFishIntegration because home-manager
+        # declares it as read-only. This means direnv's fish hook may run
+        # alongside direnv-instant's hook. See:
+        # https://github.com/Mic92/direnv-instant/issues/35
       };
 
       home.packages = [ finalPackage ];
