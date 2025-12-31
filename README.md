@@ -2,6 +2,8 @@
 
 Non-blocking direnv integration daemon with tmux/zellij support that provides instant shell prompts by running direnv asynchronously in the background.
 
+![Demo](https://github.com/Mic92/direnv-instant/releases/download/assets/demo.gif)
+
 ## Features
 
 - **Instant Prompts**: No more waiting for direnv to finish loading environments
