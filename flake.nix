@@ -57,12 +57,12 @@
                 # Test that the NixOS module evaluates correctly (Linux only)
                 nixosModule =
                   (inputs.nixpkgs.lib.nixosSystem {
-                    inherit (pkgs) system;
                     modules = [
                       self.nixosModules.direnv-instant
                       (
                         { config, ... }:
                         {
+                          nixpkgs.hostPlatform = pkgs.stdenv.hostPlatform.system;
                           boot.loader.grub.enable = false;
                           fileSystems."/".device = "nodev";
                           system.stateVersion = config.system.nixos.release;
