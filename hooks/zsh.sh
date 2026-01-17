@@ -7,8 +7,17 @@
 typeset -g __DIRENV_INSTANT_ENV_FILE=""
 typeset -g __DIRENV_INSTANT_STDERR_FILE=""
 
+# Save existing TRAPUSR1 handler if another plugin defined one
+if (( $+functions[TRAPUSR1] )); then
+  functions[__direnv_instant_orig_TRAPUSR1]="$functions[TRAPUSR1]"
+fi
+
 # SIGUSR1 handler - loads environment when signaled by Rust daemon
-_direnv_handler() {
+# Use TRAPUSR1 function instead of 'trap ... USR1' because:
+# - Function traps are not reset in subshells (zsh behavior)
+# - Provides proper function context for debugging
+# - Inspectable via 'which TRAPUSR1' or 'functions TRAPUSR1'
+TRAPUSR1() {
   # Display stderr output if available
   if [[ -n $__DIRENV_INSTANT_STDERR_FILE ]] && [[ -f $__DIRENV_INSTANT_STDERR_FILE ]]; then
     if [[ -s $__DIRENV_INSTANT_STDERR_FILE ]]; then
@@ -22,6 +31,9 @@ _direnv_handler() {
   if [[ -n $__DIRENV_INSTANT_ENV_FILE ]] && [[ -f $__DIRENV_INSTANT_ENV_FILE ]]; then
     eval "$(<"$__DIRENV_INSTANT_ENV_FILE")"
   fi
+
+  # Chain to previous handler if one existed
+  (( $+functions[__direnv_instant_orig_TRAPUSR1] )) && __direnv_instant_orig_TRAPUSR1 "$@"
 
   # Redraw the prompt after receiving output from direnv
   # This ensures the prompt is displayed after async output
@@ -50,9 +62,6 @@ _direnv_exit_cleanup() {
 # Initialize hooks if not already done
 if [[ -z ${__DIRENV_INSTANT_HOOKED} ]]; then
   typeset -g __DIRENV_INSTANT_HOOKED=1
-
-  # Set up signal handler
-  trap '_direnv_handler' USR1
 
   # Register zsh hooks
   autoload -Uz add-zsh-hook
