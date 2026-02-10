@@ -65,7 +65,7 @@ impl Multiplexer {
                 "--",
             ],
             Multiplexer::Wezterm => vec!["cli", "split-pane", "--bottom", "--cells", PANE_HEIGHT],
-            Multiplexer::Kitty => vec!["launch", "--location", "vsplit", "--keep-focus"],
+            Multiplexer::Kitty => vec!["launch", "--location", "vsplit", "--keep-focus", "--self"],
         };
 
         let mut command = Command::new(mux_bin);
