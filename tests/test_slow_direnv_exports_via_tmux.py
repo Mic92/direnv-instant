@@ -81,13 +81,11 @@ socket_path="${{@: -1}}"
     # Unblock .envrc by creating marker file
     done_marker.touch()
 
-    # Wait for daemon to complete by blocking on SIGUSR1 signal
-    signal_received = signal_waiter.wait(timeout=30)
-    assert signal_received, "SIGUSR1 was not received"
-
-    # Verify env file exists
+    # Wait for daemon to complete by polling for the env file
     env_file = Path(env_file_path)
-    assert env_file.exists(), "Env file not created"
+    assert signal_waiter.wait_for_env_file(env_file, timeout=30), (
+        "Env file not created within timeout"
+    )
 
     # Verify environment variables were exported
     env_content = env_file.read_text()

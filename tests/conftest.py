@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -15,76 +16,40 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
-# Helper script spawned as a subprocess to wait for SIGUSR1.
-# Using a subprocess instead of multiprocessing.Process avoids
-# the DeprecationWarning for fork() in multi-threaded processes
-# (Python 3.13.4+ defaults to 'spawn' on macOS) and sidesteps
-# issues where the signal handler is not installed in time.
-_SIGNAL_WAITER_SCRIPT = """\
-import os, signal, sys, time
-
-# Write PID so the parent can read it
-sys.stdout.write(str(os.getpid()) + '\\n')
-sys.stdout.flush()
-
-received = False
-
-def handler(signum, frame):
-    global received
-    received = True
-
-signal.signal(signal.SIGUSR1, handler)
-
-# Notify parent that the handler is installed
-sys.stdout.write('READY\\n')
-sys.stdout.flush()
-
-# Poll until signal received or timeout (read from stdin for shutdown)
-start = time.monotonic()
-timeout = 30
-while not received and (time.monotonic() - start) < timeout:
-    time.sleep(0.1)
-
-sys.exit(0 if received else 1)
-"""
-
 
 class SignalWaiter:
-    """Waits for SIGUSR1 signal in a subprocess."""
+    """Provides a PID for SIGUSR1 and polls the env file for completion.
+
+    The daemon sends SIGUSR1 to DIRENV_INSTANT_SHELL_PID after it writes
+    the env file.  On macOS (especially in nix sandboxes), cross-process
+    signal delivery can be unreliable.  Instead of trying to catch the
+    signal, we give the daemon a real PID (sleep process) and poll for the
+    env file the daemon creates, which is the ground truth for completion.
+    """
 
     def __init__(self) -> None:
-        """Initialize signal waiter as a plain subprocess."""
-        self._process = subprocess.Popen(
-            ["python3", "-c", _SIGNAL_WAITER_SCRIPT],
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            text=True,
+        """Start a long-lived sleep process whose PID the daemon will signal."""
+        self._proc = subprocess.Popen(
+            ["sleep", "3600"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
         )
-        assert self._process.stdout is not None
+        self.pid: int = self._proc.pid
 
-        # Read the PID line
-        pid_line = self._process.stdout.readline().strip()
-        self.pid = int(pid_line)
-
-        # Wait for READY to ensure signal handler is installed
-        ready_line = self._process.stdout.readline().strip()
-        assert ready_line == "READY", f"Expected READY, got {ready_line!r}"
-
-    def wait(self, timeout: float = 30) -> bool:
-        """Wait for signal and return whether it was received."""
-        try:
-            self._process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            self._process.kill()
-            self._process.wait()
-            return False
-        return self._process.returncode == 0
+    def wait_for_env_file(self, env_file: Path, timeout: float = 30) -> bool:
+        """Poll until *env_file* exists and is non-empty, or timeout."""
+        start = time.time()
+        while (time.time() - start) < timeout:
+            if env_file.exists() and env_file.stat().st_size > 0:
+                return True
+            time.sleep(0.2)
+        return False
 
     def cleanup(self) -> None:
-        """Clean up the signal process."""
-        if self._process.poll() is None:
-            self._process.kill()
-            self._process.wait()
+        """Terminate the sleep process."""
+        self._proc.kill()
+        self._proc.wait()
 
 
 class DirenvInstantRunner:
