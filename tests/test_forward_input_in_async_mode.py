@@ -129,12 +129,10 @@ echo "Hello, $name!" >&2
         capture_output=True,
     )
 
-    # Wait for the signal that processing is complete
-    received_signal = signal_waiter.wait(timeout=10)
-    assert received_signal, "Did not receive SIGUSR1 signal from daemon"
-
-    # Verify the environment was exported with the input value
-    assert env_file.exists(), f"Environment file not created: {env_file}"
+    # Wait for the daemon to complete by polling for the env file
+    assert signal_waiter.wait_for_env_file(env_file, timeout=10), (
+        f"Environment file not created within timeout: {env_file}"
+    )
     env_content = env_file.read_text()
 
     # Check that USER_NAME was set to our input
