@@ -22,6 +22,10 @@ _direnv_handler() {
   if [[ -n $__DIRENV_INSTANT_ENV_FILE ]] && [[ -f $__DIRENV_INSTANT_ENV_FILE ]]; then
     eval "$(<"$__DIRENV_INSTANT_ENV_FILE")"
   fi
+
+  # Redraw the prompt after receiving output from direnv
+  # This ensures the prompt is displayed after async output
+  zle && zle .reset-prompt && zle -R
 }
 
 # Main hook called on directory changes and prompts
