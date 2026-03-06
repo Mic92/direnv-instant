@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-import multiprocessing
 import os
-import signal
 import subprocess
 import tempfile
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,54 +15,76 @@ if TYPE_CHECKING:
 
 PROJECT_ROOT = Path(__file__).parent.parent
 
+# Helper script spawned as a subprocess to wait for SIGUSR1.
+# Using a subprocess instead of multiprocessing.Process avoids
+# the DeprecationWarning for fork() in multi-threaded processes
+# (Python 3.13.4+ defaults to 'spawn' on macOS) and sidesteps
+# issues where the signal handler is not installed in time.
+_SIGNAL_WAITER_SCRIPT = """\
+import os, signal, sys, time
 
-def _wait_for_sigusr1(queue: multiprocessing.Queue[bool], timeout: int) -> None:
-    """Subprocess that waits for SIGUSR1 and reports back."""
-    received = False
+# Write PID so the parent can read it
+sys.stdout.write(str(os.getpid()) + '\\n')
+sys.stdout.flush()
 
-    def handler(_signum: int, _frame: object) -> None:
-        nonlocal received
-        received = True
+received = False
 
-    signal.signal(signal.SIGUSR1, handler)
+def handler(signum, frame):
+    global received
+    received = True
 
-    # Wait for signal
-    start = time.time()
-    while not received and (time.time() - start) < timeout:
-        time.sleep(0.1)
+signal.signal(signal.SIGUSR1, handler)
 
-    queue.put(received)
+# Notify parent that the handler is installed
+sys.stdout.write('READY\\n')
+sys.stdout.flush()
+
+# Poll until signal received or timeout (read from stdin for shutdown)
+start = time.monotonic()
+timeout = 30
+while not received and (time.monotonic() - start) < timeout:
+    time.sleep(0.1)
+
+sys.exit(0 if received else 1)
+"""
 
 
 class SignalWaiter:
     """Waits for SIGUSR1 signal in a subprocess."""
 
     def __init__(self) -> None:
-        """Initialize signal waiter process."""
-        self._queue: multiprocessing.Queue[bool] = multiprocessing.Queue()
-        self._process = multiprocessing.Process(
-            target=_wait_for_sigusr1, args=(self._queue, 30)
+        """Initialize signal waiter as a plain subprocess."""
+        self._process = subprocess.Popen(
+            ["python3", "-c", _SIGNAL_WAITER_SCRIPT],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            text=True,
         )
-        self._process.start()
+        assert self._process.stdout is not None
 
-        pid = self._process.pid
-        assert pid is not None, "Failed to get PID of signal process"
-        self.pid = pid
+        # Read the PID line
+        pid_line = self._process.stdout.readline().strip()
+        self.pid = int(pid_line)
+
+        # Wait for READY to ensure signal handler is installed
+        ready_line = self._process.stdout.readline().strip()
+        assert ready_line == "READY", f"Expected READY, got {ready_line!r}"
 
     def wait(self, timeout: float = 30) -> bool:
         """Wait for signal and return whether it was received."""
-        self._process.join(timeout=timeout)
-        if not self._queue.empty():
-            return self._queue.get()
-        return False
+        try:
+            self._process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self._process.kill()
+            self._process.wait()
+            return False
+        return self._process.returncode == 0
 
     def cleanup(self) -> None:
         """Clean up the signal process."""
-        if self._process.is_alive():
-            self._process.join(timeout=1)
-        if self._process.is_alive():
-            self._process.terminate()
-            self._process.join(timeout=1)
+        if self._process.poll() is None:
+            self._process.kill()
+            self._process.wait()
 
 
 class DirenvInstantRunner:
