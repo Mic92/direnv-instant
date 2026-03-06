@@ -125,7 +125,7 @@ in
 
       programs.kitty.settings = mkIf cfg.enableKittyIntegration {
         allow_remote_control = true;
-        listen_on = ''unix:kitty-{kitty_pid}'';
+        listen_on = "unix:kitty-{kitty_pid}";
       };
     };
 }
