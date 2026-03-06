@@ -10,9 +10,9 @@ function _direnv_handler --on-signal USR1
     # Display stderr output if available
     if test -n "$__DIRENV_INSTANT_STDERR_FILE" -a -f "$__DIRENV_INSTANT_STDERR_FILE"
         if test -s "$__DIRENV_INSTANT_STDERR_FILE"
-            cat "$__DIRENV_INSTANT_STDERR_FILE"
+            command cat "$__DIRENV_INSTANT_STDERR_FILE"
         end
-        rm -f "$__DIRENV_INSTANT_STDERR_FILE" 2>/dev/null; or true
+        command rm -f "$__DIRENV_INSTANT_STDERR_FILE" 2>/dev/null; or true
         set -g __DIRENV_INSTANT_STDERR_FILE ""
     end
 

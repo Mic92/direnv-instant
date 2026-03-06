@@ -11,9 +11,9 @@ _direnv_handler() {
   # Display stderr output if available
   if [[ -n $__DIRENV_INSTANT_STDERR_FILE ]] && [[ -f $__DIRENV_INSTANT_STDERR_FILE ]]; then
     if [[ -s $__DIRENV_INSTANT_STDERR_FILE ]]; then
-      cat "$__DIRENV_INSTANT_STDERR_FILE"
+      printf '%s\n' "$(<"$__DIRENV_INSTANT_STDERR_FILE")"
     fi
-    rm -f "$__DIRENV_INSTANT_STDERR_FILE" 2>/dev/null || true
+    command rm -f "$__DIRENV_INSTANT_STDERR_FILE" 2>/dev/null || true
     __DIRENV_INSTANT_STDERR_FILE=""
   fi
 
