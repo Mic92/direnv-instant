@@ -1,4 +1,6 @@
 use crate::daemon::stop_daemon;
+use nix::libc;
+use nix::pty::Winsize;
 use nix::sys::select::{FdSet, select};
 use nix::sys::signal::{SaFlags, SigAction, SigHandler, SigSet, Signal, sigaction};
 use nix::sys::socket::{ControlMessageOwned, MsgFlags, recvmsg};
@@ -14,9 +16,38 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 static WATCH_RUNNING: AtomicBool = AtomicBool::new(true);
+static SIGWINCH_RECEIVED: AtomicBool = AtomicBool::new(false);
 
 extern "C" fn sigint_handler(_: nix::libc::c_int) {
     WATCH_RUNNING.store(false, Ordering::SeqCst);
+}
+
+extern "C" fn sigwinch_handler(_: nix::libc::c_int) {
+    SIGWINCH_RECEIVED.store(true, Ordering::SeqCst);
+}
+
+/// Read the terminal window size from a file descriptor.
+fn get_winsize(fd: RawFd) -> Option<Winsize> {
+    let mut ws: Winsize = unsafe { std::mem::zeroed() };
+    let ret = unsafe { libc::ioctl(fd, libc::TIOCGWINSZ, &mut ws) };
+    if ret == 0 { Some(ws) } else { None }
+}
+
+/// Set the terminal window size on a file descriptor.
+/// When called on a PTY master, the kernel delivers SIGWINCH to the
+/// child process group, causing programs like nix to re-read the size.
+fn set_winsize(fd: RawFd, ws: &Winsize) {
+    unsafe {
+        libc::ioctl(fd, libc::TIOCSWINSZ, ws);
+    }
+}
+
+/// Propagate our terminal size to the PTY master so the child process
+/// (e.g. nix) uses the actual pane width instead of a hardcoded default.
+fn propagate_winsize(pty_fd: RawFd) {
+    if let Some(ws) = get_winsize(libc::STDERR_FILENO) {
+        set_winsize(pty_fd, &ws);
+    }
 }
 
 /// RAII guard that restores terminal settings on drop
@@ -149,6 +180,17 @@ pub fn run(log_path: &Path, socket_path: &Path) {
         None
     };
 
+    // Propagate our terminal size to the PTY and track future resizes
+    if let Some(ref pty) = pty_master {
+        propagate_winsize(pty.as_raw_fd());
+
+        let winch_handler = SigHandler::Handler(sigwinch_handler);
+        let winch_action = SigAction::new(winch_handler, SaFlags::empty(), SigSet::empty());
+        unsafe {
+            let _ = sigaction(Signal::SIGWINCH, &winch_action);
+        }
+    }
+
     // Set stdin to raw mode for transparent input forwarding (only if we have PTY fd)
     let _raw_mode_guard = if pty_master.is_some() {
         RawModeGuard::new(&stdin)
@@ -164,6 +206,13 @@ pub fn run(log_path: &Path, socket_path: &Path) {
     let mut handle = stdout.lock();
 
     while WATCH_RUNNING.load(Ordering::SeqCst) {
+        // Propagate terminal resize to PTY when our pane is resized
+        if SIGWINCH_RECEIVED.swap(false, Ordering::SeqCst)
+            && let Some(ref pty) = pty_master
+        {
+            propagate_winsize(pty.as_raw_fd());
+        }
+
         let mut fds = FdSet::new();
         fds.insert(socket.as_fd());
         if stdin_is_terminal && pty_master.is_some() {
