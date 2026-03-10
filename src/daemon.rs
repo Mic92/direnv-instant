@@ -388,8 +388,13 @@ fn parent_process(
     }
     // Otherwise Cleanup Drop will remove it
 
-    // Only rename env file on success
-    let has_env = success && ctx.temp_file.exists();
+    // Only rename env file on success and if it has content
+    let has_env = success
+        && ctx
+            .temp_file
+            .metadata()
+            .map(|m| m.len() > 0)
+            .unwrap_or(false);
     if has_env {
         let _ = std::fs::rename(&ctx.temp_file, &ctx.env_file);
     }
