@@ -62,6 +62,7 @@ impl Multiplexer {
                 "down",
                 "--width",
                 PANE_HEIGHT,
+                "--close-on-exit",
                 "--",
             ],
             Multiplexer::Wezterm => vec!["cli", "split-pane", "--bottom", "--cells", PANE_HEIGHT],
