@@ -64,7 +64,10 @@
                         {
                           nixpkgs.hostPlatform = pkgs.stdenv.hostPlatform.system;
                           boot.loader.grub.enable = false;
-                          fileSystems."/".device = "nodev";
+                          fileSystems."/" = {
+                            device = "nodev";
+                            fsType = "tmpfs";
+                          };
                           system.stateVersion = config.system.nixos.release;
                           programs.direnv-instant.enable = true;
                         }
