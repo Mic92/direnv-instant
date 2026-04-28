@@ -170,6 +170,7 @@ Both the Home Manager and NixOS modules support the following options under `pro
 | `enableZshIntegration` | bool | `true` | Enable Zsh shell integration |
 | `settings.use_cache` | bool | `true` | Enable cached environment loading for instant prompts |
 | `settings.mux_delay` | int | `4` | Delay in seconds before spawning multiplexer pane |
+| `settings.kitty_launch_args` | listOf str | `["--location" "vsplit" "--keep-focus" "--self"]` | Arguments passed to `kitty launch` before the watch command |
 | `settings.debug_log` | string | `null` | Path to debug log file for daemon output |
 
 The Home Manager module additionally supports:
@@ -182,6 +183,7 @@ The Home Manager module additionally supports:
 
 - `DIRENV_INSTANT_USE_CACHE`: Enable cached environment loading for instant prompts (default: 1). Set to 0 to disable caching.
 - `DIRENV_INSTANT_MUX_DELAY`: Delay in seconds before spawning multiplexer pane (default: 4)
+- `DIRENV_INSTANT_KITTY_LAUNCH_ARGS`: Newline-separated arguments passed to `kitty launch` before the watch command (default: `--location`, `vsplit`, `--keep-focus`, `--self`)
 - `DIRENV_INSTANT_DEBUG_LOG`: Path to debug log file for daemon output
 
 ## FAQ
