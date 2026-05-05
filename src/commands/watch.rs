@@ -261,6 +261,9 @@ pub fn run(log_path: &Path, socket_path: &Path) {
                     }
                 }
             }
+            // Signal (e.g. SIGWINCH from the multiplexer on pane creation)
+            // interrupted select; retry instead of exiting.
+            Err(e) if e == nix::errno::Errno::EINTR => continue,
             Err(_) => break,
         }
 
