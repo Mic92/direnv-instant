@@ -16,6 +16,7 @@ let
 
   inherit (lib.types)
     int
+    listOf
     nullOr
     package
     str
@@ -65,6 +66,22 @@ in
         default = 4;
         example = 1;
       };
+      kitty_launch_args = mkOption {
+        description = "Arguments passed to kitty launch before the watch command";
+        type = listOf str;
+        default = [
+          "--location"
+          "vsplit"
+          "--keep-focus"
+          "--self"
+        ];
+        example = [
+          "--location"
+          "hsplit"
+          "--keep-focus"
+          "--self"
+        ];
+      };
       debug_log = mkOption {
         description = "Path to debug log for daemon output";
         type = nullOr str;
@@ -87,6 +104,7 @@ in
             makeWrapper ${cfg.package}/bin/direnv-instant $out/bin/direnv-instant \
               --set-default DIRENV_INSTANT_USE_CACHE ${if cfg.settings.use_cache then "1" else "0"} \
               --set-default DIRENV_INSTANT_MUX_DELAY ${builtins.toString cfg.settings.mux_delay} \
+              --set-default DIRENV_INSTANT_KITTY_LAUNCH_ARGS ${lib.escapeShellArg (lib.concatStringsSep "\n" cfg.settings.kitty_launch_args)} \
               ${optionalString (
                 cfg.settings.debug_log != null
               ) "--set-default DIRENV_INSTANT_DEBUG_LOG '${cfg.settings.debug_log}'"}
