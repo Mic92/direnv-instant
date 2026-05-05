@@ -238,7 +238,13 @@ fn run_direnv(direnv_cmd: &str, ctx: &DaemonContext) {
     let _cleanup = Cleanup(ctx);
 
     let listener = UnixListener::bind(&ctx.socket_path).expect("Failed to bind socket");
-    let notify_pids = Arc::new(Mutex::new(vec![ctx.parent_pid]));
+    // Nushell has no signal handler, so SIGUSR1 would terminate the shell;
+    // skip registering its pid for notification.
+    let notify_pids = Arc::new(Mutex::new(if ctx.shell == Shell::Nushell {
+        vec![]
+    } else {
+        vec![ctx.parent_pid]
+    }));
     let should_stop = Arc::new(AtomicBool::new(false));
     let pty_master: Arc<Mutex<Option<OwnedFd>>> = Arc::new(Mutex::new(None));
 

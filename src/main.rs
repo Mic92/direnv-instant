@@ -1,6 +1,7 @@
 mod commands;
 mod daemon;
 mod mux;
+mod nushell;
 mod shell;
 
 use std::env;
