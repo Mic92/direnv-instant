@@ -38,7 +38,18 @@ def test_nushell_apply_unset_reenter(
     allow_direnv(tmp_path, monkeypatch)
 
     binary_dir = Path(direnv_instant.binary_path).resolve().parent
-    hook_path = Path(__file__).resolve().parent.parent / "hooks" / "nushell.nu"
+    # Materialize the hook from the binary itself: nushell's `source` resolves
+    # at parse time and needs a real local path, and the source tree's hooks/
+    # dir isn't part of the test fileset in the Nix build sandbox.
+    hook_path = tmp_path / "nushell.nu"
+    hook_path.write_text(
+        subprocess.run(
+            [direnv_instant.binary_path, "hook", "nu"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    )
     script = tmp_path / "drive.nu"
     script.write_text(
         f"""$env.PATH = ([
