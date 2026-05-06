@@ -40,15 +40,15 @@ TRAPUSR1() {
   zle && zle .reset-prompt && zle -R
 }
 
-# Main hook called on directory changes and prompts
+# Main hook called on directory changes and prompts.
+#
+# Note: we deliberately do NOT eval the cached env_file on every prompt.
+# Doing so re-applies `export PATH='<original>'` and clobbers user-added
+# entries (e.g. from `nix shell`). The binary now emits cached env once
+# per dir change (or runs `direnv export` for a delta when envrc is
+# already loaded), and the SIGUSR1 trap handles async daemon completion.
 _direnv_hook() {
   export DIRENV_INSTANT_SHELL_PID=$$
-
-  # Load cached environment immediately if available and caching is enabled
-  if [[ ${DIRENV_INSTANT_USE_CACHE:-1} == 1 ]] && [[ -n $__DIRENV_INSTANT_ENV_FILE ]] && [[ -f $__DIRENV_INSTANT_ENV_FILE ]]; then
-    eval "$(<"$__DIRENV_INSTANT_ENV_FILE")"
-  fi
-
   trap -- '' SIGINT
   eval "$(direnv-instant start)"
   trap - SIGINT

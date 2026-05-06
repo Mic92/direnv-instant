@@ -6,6 +6,7 @@
   direnv,
   tmux,
   fish,
+  zsh,
 }:
 
 let
@@ -28,6 +29,7 @@ runCommand "direnv-instant-tests"
       direnv
       tmux
       fish
+      zsh
     ];
 
     meta = with lib; {

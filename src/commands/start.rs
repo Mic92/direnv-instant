@@ -6,7 +6,7 @@ use crate::shell::Shell;
 use nix::unistd::getppid;
 use std::env;
 use std::os::unix::process::CommandExt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 pub fn run() {
@@ -27,13 +27,34 @@ pub fn run() {
         }
     };
 
-    // Check if we need to restart daemon (different directory)
-    if let Ok(current) = env::var("__DIRENV_INSTANT_CURRENT_DIR") {
-        let current_dir = PathBuf::from(&current);
-        if current_dir != envrc_dir {
-            stop_daemon(&get_socket_path(&current_dir));
-        }
+    // Steady-state fast path: envrc is already loaded into the current shell
+    // (DIRENV_DIR matches and __DIRENV_INSTANT_CURRENT_DIR is unchanged), so
+    // delegate to `direnv export` directly. It emits only the delta needed
+    // and preserves user PATH additions (e.g. from `nix shell`) instead of
+    // re-applying the cached snapshot wholesale (issue #88).
+    if envrc_already_loaded(&envrc_dir)
+        && env::var("__DIRENV_INSTANT_CURRENT_DIR").as_deref()
+            == Ok(&envrc_dir.display().to_string())
+    {
+        run_direnv_sync(direnv, shell, true);
+        return;
     }
+
+    // Check if we changed dirs since the last hook fire. The cache emit
+    // below is gated on this so the user's mid-prompt env mutations aren't
+    // clobbered on every prompt (issue #88).
+    let dir_changed = match env::var("__DIRENV_INSTANT_CURRENT_DIR") {
+        Ok(current) => {
+            let current_dir = PathBuf::from(&current);
+            if current_dir != envrc_dir {
+                stop_daemon(&get_socket_path(&current_dir));
+                true
+            } else {
+                false
+            }
+        }
+        Err(_) => true,
+    };
     shell.export_var(
         "__DIRENV_INSTANT_CURRENT_DIR",
         &envrc_dir.display().to_string(),
@@ -63,12 +84,34 @@ pub fn run() {
         &ctx.stderr_file.display().to_string(),
     );
 
+    // Cold-start UX: when entering this dir, emit the cached env_file once
+    // so the prompt sees the env immediately. Subsequent prompts in the
+    // same dir skip this so user-added env vars aren't clobbered. The
+    // daemon will refresh asynchronously and SIGUSR1 the shell when it has
+    // fresh output.
+    if dir_changed
+        && ctx.env_file.exists()
+        && let Ok(content) = std::fs::read_to_string(&ctx.env_file)
+    {
+        print!("{}", content);
+    }
+
     // Check if daemon is already running
     if ctx.socket_path.exists() && notify_daemon(&ctx.socket_path, parent_pid) {
         return;
     }
 
     start_daemon(direnv, &ctx);
+}
+
+/// True if the current shell already has *envrc_dir* loaded by direnv (i.e.
+/// `DIRENV_DIR == "-<envrc_dir>"`, the format direnv uses internally).
+fn envrc_already_loaded(envrc_dir: &Path) -> bool {
+    let Ok(direnv_dir) = env::var("DIRENV_DIR") else {
+        return false;
+    };
+    let stripped = direnv_dir.strip_prefix('-').unwrap_or(&direnv_dir);
+    Path::new(stripped) == envrc_dir
 }
 
 fn find_envrc() -> Option<PathBuf> {

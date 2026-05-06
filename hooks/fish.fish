@@ -22,16 +22,16 @@ function _direnv_handler --on-signal USR1
     end
 end
 
-# Main hook called on directory changes and prompts
+# Main hook called on directory changes and prompts.
+#
+# Note: we deliberately do NOT source the cached env_file on every prompt.
+# Doing so re-applies `set -gx PATH '<original>'` and clobbers user-added
+# entries (e.g. from `nix shell`). The binary now emits cached env once
+# per dir change (or runs `direnv export` for a delta when envrc is
+# already loaded), and the SIGUSR1 handler handles async daemon completion.
 function _direnv_hook --on-event fish_prompt --on-variable PWD
     set -gx DIRENV_INSTANT_SHELL fish
     set -gx DIRENV_INSTANT_SHELL_PID $fish_pid
-
-    # Load cached environment immediately if available and caching is enabled
-    if test "$DIRENV_INSTANT_USE_CACHE" != 0 -a -n "$__DIRENV_INSTANT_ENV_FILE" -a -f "$__DIRENV_INSTANT_ENV_FILE"
-        source "$__DIRENV_INSTANT_ENV_FILE"
-    end
-
     direnv-instant start | source
 end
 
