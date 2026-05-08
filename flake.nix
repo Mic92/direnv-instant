@@ -39,7 +39,6 @@
             devShells.default = pkgs.mkShell {
               inputsFrom = [
                 self'.packages.direnv-instant
-                self'.checks.tests
               ];
               packages = with pkgs; [
                 rustfmt
@@ -78,11 +77,6 @@
               in
               packages
               // devShells
-              // {
-                tests = pkgs.callPackage ./tests.nix {
-                  direnv-instant = self'.packages.direnv-instant;
-                };
-              }
               // lib.optionalAttrs pkgs.stdenv.isLinux {
                 inherit nixosModule;
               };

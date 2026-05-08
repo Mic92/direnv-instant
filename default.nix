@@ -1,6 +1,10 @@
 {
   lib,
   rustPlatform,
+  direnv,
+  tmux,
+  fish,
+  nushell,
 }:
 
 rustPlatform.buildRustPackage {
@@ -14,12 +18,24 @@ rustPlatform.buildRustPackage {
       ./Cargo.lock
       ./src
       ./hooks
+      ./tests
     ];
   };
 
-  cargoLock = {
-    lockFile = ./Cargo.lock;
-  };
+  cargoLock.lockFile = ./Cargo.lock;
+
+  nativeCheckInputs = [
+    direnv
+    tmux
+    fish
+    nushell
+  ];
+
+  # Integration tests spawn shells and tmux servers; isolate them.
+  preCheck = ''
+    export HOME=$(mktemp -d)
+    export TMPDIR=/tmp
+  '';
 
   # Nushell's `source` is a parse-time keyword and cannot read command
   # output, so ship the hook as a file users can source by path.
