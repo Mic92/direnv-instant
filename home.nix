@@ -18,6 +18,7 @@ let
   inherit (lib.hm.shell)
     mkBashIntegrationOption
     mkFishIntegrationOption
+    mkNushellIntegrationOption
     mkZshIntegrationOption
     ;
 
@@ -53,6 +54,7 @@ in
 
     enableBashIntegration = mkBashIntegrationOption { inherit config; };
     enableFishIntegration = mkFishIntegrationOption { inherit config; };
+    enableNushellIntegration = mkNushellIntegrationOption { inherit config; };
     enableZshIntegration = mkZshIntegrationOption { inherit config; };
 
     enableKittyIntegration = (mkEnableOption "kitty integration") // {
@@ -120,6 +122,7 @@ in
         # direnv and direnv-instant have mutually exclusive hooks
         enableBashIntegration = lib.mkIf cfg.enableBashIntegration (lib.mkForce false);
         enableZshIntegration = lib.mkIf cfg.enableZshIntegration (lib.mkForce false);
+        enableNushellIntegration = lib.mkIf cfg.enableNushellIntegration (lib.mkForce false);
       }
       // lib.optionalAttrs (!fishIntegrationReadOnly) {
         # Only disable fish integration if the option is not read-only (unstable home-manager)
@@ -139,6 +142,12 @@ in
 
       programs.fish.interactiveShellInit = mkIf cfg.enableFishIntegration ''
         direnv-instant hook fish | source
+      '';
+
+      # Nushell's `source` resolves at parse time and cannot evaluate command
+      # output, so source the hook file shipped in the package.
+      programs.nushell.extraConfig = mkIf cfg.enableNushellIntegration ''
+        source ${cfg.package}/share/direnv-instant/nushell.nu
       '';
 
       programs.kitty.settings = mkIf cfg.enableKittyIntegration {
