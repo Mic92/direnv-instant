@@ -10,7 +10,7 @@ Non-blocking direnv integration daemon with tmux/zellij support that provides in
 - **Environment Caching**: Uses cached environment from previous load for truly instant prompts
 - **Asynchronous Loading**: Direnv runs in the background, shell gets notified when ready via SIGUSR1
 - **Multiplexer Integration**: Automatically spawns a tmux/zellij pane to show direnv output when loading takes too long
-- **Shell Support**: Works with bash, zsh, and fish
+- **Shell Support**: Works with bash, zsh, fish, and nushell
 
 ## How It Works
 
@@ -155,6 +155,19 @@ Add to your `~/.config/fish/config.fish`:
 direnv-instant hook fish | source
 ```
 
+### Nushell
+
+Nushell's `source` is resolved at parse time and cannot evaluate command
+output, so there is no `direnv-instant hook nu | source` one-liner. Use the
+Home Manager module (`programs.direnv-instant.enableNushellIntegration`),
+which sources the hook file shipped at
+`$out/share/direnv-instant/nushell.nu`.
+
+> **Note:** Nushell has no signal-trap mechanism, so the hook cannot react to
+> the daemon's SIGUSR1 like the other shells. It instead reloads the cached env
+> file on each prompt and before each command, so the environment appears once
+> direnv finishes — typically by the next prompt.
+
 ## Configuration
 
 ### Module Options
@@ -178,6 +191,7 @@ The Home Manager module additionally supports:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enableKittyIntegration` | bool | `config.programs.kitty.enable` | Enable Kitty terminal integration |
+| `enableNushellIntegration` | bool | `true` | Enable Nushell integration |
 
 ### Environment Variables
 
