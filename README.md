@@ -204,6 +204,7 @@ The Home Manager module additionally supports:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enableKittyIntegration` | bool | `config.programs.kitty.enable` | Enable Kitty terminal integration |
+| `enableNushellIntegration` | bool | `true` | Enable Nushell integration |
 
 ### Environment Variables
 
