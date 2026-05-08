@@ -10,7 +10,7 @@ Non-blocking direnv integration daemon with tmux/zellij support that provides in
 - **Environment Caching**: Uses cached environment from previous load for truly instant prompts
 - **Asynchronous Loading**: Direnv runs in the background, shell gets notified when ready via SIGUSR1
 - **Multiplexer Integration**: Automatically spawns a tmux/zellij pane to show direnv output when loading takes too long
-- **Shell Support**: Works with bash, zsh, and fish
+- **Shell Support**: Works with bash, zsh, fish, and nushell
 
 ## How It Works
 
@@ -121,6 +121,12 @@ For fish:
 nix run github:Mic92/direnv-instant -- hook fish | source
 ```
 
+For nushell:
+```nushell
+nix run github:Mic92/direnv-instant -- hook nu | save -f ($nu.data-dir | path join "direnv-instant.nu")
+source ($nu.data-dir | path join "direnv-instant.nu")
+```
+
 ### Building from Source
 
 ```bash
@@ -154,6 +160,26 @@ Add to your `~/.config/fish/config.fish`:
 ```fish
 direnv-instant hook fish | source
 ```
+
+### Nushell
+
+Nushell's `source` is resolved at parse time, so the hook must be written to a
+file first. Add to your `env.nu`:
+
+```nushell
+direnv-instant hook nu | save -f ($nu.data-dir | path join "direnv-instant.nu")
+```
+
+and then in `config.nu`:
+
+```nushell
+source ($nu.data-dir | path join "direnv-instant.nu")
+```
+
+> **Note:** Nushell has no signal-trap mechanism, so the hook cannot react to
+> the daemon's SIGUSR1 like the other shells. It instead reloads the cached env
+> file on each prompt and before each command, so the environment appears once
+> direnv finishes — typically by the next prompt.
 
 ## Configuration
 
