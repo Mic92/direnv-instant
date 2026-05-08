@@ -1,42 +1,37 @@
 # direnv-instant
 
-Non-blocking direnv integration daemon with tmux/zellij support that provides instant shell prompts by running direnv asynchronously in the background.
+Non-blocking direnv shell integration. Runs direnv in a background daemon so
+your prompt comes back immediately instead of waiting for `.envrc` to finish.
 
 ![Demo](https://github.com/Mic92/direnv-instant/releases/download/assets/demo.gif)
 
-## Features
+## What it does
 
-- **Instant Prompts**: No more waiting for direnv to finish loading environments
-- **Environment Caching**: Uses cached environment from previous load for truly instant prompts
-- **Asynchronous Loading**: Direnv runs in the background, shell gets notified when ready via SIGUSR1
-- **Multiplexer Integration**: Automatically spawns a tmux/zellij pane to show direnv output when loading takes too long
-- **Shell Support**: Works with bash, zsh, fish, and nushell
+The shell hook starts a daemon and returns right away. The daemon runs direnv,
+writes the resulting environment to a file, and signals the shell with SIGUSR1
+when it's done. The shell trap then loads the new environment. On revisit, a
+cached environment from the previous run is applied instantly while the daemon
+revalidates in the background.
 
-## How It Works
+If direnv takes longer than 4 seconds (configurable), a tmux/zellij/wezterm/kitty
+split opens showing direnv's output so you can see what it's doing — and ctrl-c
+it if needed.
 
-Instead of blocking your shell prompt while direnv loads environment variables, direnv-instant:
+Supported shells: bash, zsh, fish, nushell.
+Supported multiplexers: tmux, zellij, wezterm, kitty (kitty needs the
+home-manager module).
 
-1. Starts a background daemon that runs direnv asynchronously
-2. Returns control to your shell immediately for an instant prompt
-3. Notifies your shell via SIGUSR1 when the environment is ready
-4. Automatically applies the new environment variables without disrupting your workflow
-5. If direnv takes longer than 4 seconds (configurable), spawns a tmux/zellij pane showing progress
-
-## Supported multiplexers
-- Kitty (with home-manager module only)
-- Tmux
-- Wezterm
-- Zellij
-
-## Recommended
-
-For Nix users, we highly recommend using [nix-direnv](https://github.com/nix-community/nix-direnv) alongside direnv-instant. It provides intelligent caching of Nix environments and creates gcroots to prevent garbage collection, which is essential for direnv-instant's environment caching to work reliably.
+If you use Nix, pair this with
+[nix-direnv](https://github.com/nix-community/nix-direnv). It caches Nix
+environments and creates gcroots, which keeps direnv-instant's cached
+environment from being garbage collected out from under you.
 
 ## Installation
 
-### Home Manager
+direnv-instant replaces direnv's normal shell integration — don't use both.
+Remove any `eval "$(direnv hook ...)"` lines from your shell config first.
 
-Add to your `flake.nix` inputs:
+### Home Manager
 
 ```nix
 {
@@ -44,172 +39,94 @@ Add to your `flake.nix` inputs:
 }
 ```
 
-Then make `inputs` available to your home-manager modules via `extraSpecialArgs`:
+Pass `inputs` through `extraSpecialArgs`, then:
 
 ```nix
-homeConfigurations."user" = home-manager.lib.homeManagerConfiguration {
-  # ... other config ...
-  extraSpecialArgs = { inherit inputs; };
-  modules = [
-    ./home.nix
-  ];
-};
-```
-
-Now add to your home-manager configuration:
-
-```nix
-{ inputs, pkgs, ... }:
+{ inputs, ... }:
 {
-  imports = [
-    inputs.direnv-instant.homeModules.direnv-instant
-  ];
-
+  imports = [ inputs.direnv-instant.homeModules.direnv-instant ];
   programs.direnv-instant.enable = true;
 }
 ```
 
 ### NixOS
 
-Add to your `flake.nix` inputs:
+Same flake input. Pass `inputs` through `specialArgs`, then:
 
 ```nix
+{ inputs, ... }:
 {
-  inputs.direnv-instant.url = "github:Mic92/direnv-instant";
-}
-```
-
-Then make `inputs` available to your NixOS modules by adding `specialArgs`:
-
-```nix
-nixosSystem {
-  # ... other config ...
-  specialArgs = { inherit inputs; };
-  modules = [
-    ./configuration.nix
-  ];
-}
-```
-
-Now add to your NixOS configuration:
-
-```nix
-{ inputs, pkgs, ... }:
-{
-  imports = [
-    inputs.direnv-instant.nixosModules.direnv-instant
-  ];
-
+  imports = [ inputs.direnv-instant.nixosModules.direnv-instant ];
   programs.direnv-instant.enable = true;
 }
 ```
 
-### Adhoc testing
+### Manual shell setup
 
-For bash:
+bash (`~/.bashrc`):
 ```bash
-eval "$(nix run github:Mic92/direnv-instant -- hook bash)"
+eval "$(direnv-instant hook bash)"
 ```
 
-For zsh:
+zsh (`~/.zshrc`):
 ```bash
-eval "$(nix run github:Mic92/direnv-instant -- hook zsh)"
+eval "$(direnv-instant hook zsh)"
 ```
 
-For fish:
+fish (`~/.config/fish/config.fish`):
 ```fish
-nix run github:Mic92/direnv-instant -- hook fish | source
+direnv-instant hook fish | source
 ```
 
-### Building from Source
+nushell: there's no `hook nu | source` one-liner because nushell's `source` is
+parse-time only. The hook ships at `share/direnv-instant/nushell.nu`; the
+home-manager module sources it for you when
+`programs.direnv-instant.enableNushellIntegration` is enabled. Nushell also
+can't trap SIGUSR1, so the hook polls the env file on each prompt — new env
+shows up on the next prompt after direnv finishes.
+
+For a quick test without installing, swap `direnv-instant` for
+`nix run github:Mic92/direnv-instant --` in the lines above.
+
+### From source
 
 ```bash
 cargo build --release
 ```
 
-## Setup
-
-**IMPORTANT:** direnv-instant replaces direnv's normal shell integration. Do NOT use both together. Remove any existing `eval "$(direnv hook bash)"` or `eval "$(direnv hook zsh)"` from your shell configuration before adding direnv-instant.
-
-### Bash
-
-Add to your `~/.bashrc`:
-
-```bash
-eval "$(direnv-instant hook bash)"
-```
-
-### Zsh
-
-Add to your `~/.zshrc`:
-
-```bash
-eval "$(direnv-instant hook zsh)"
-```
-
-### Fish
-
-Add to your `~/.config/fish/config.fish`:
-
-```fish
-direnv-instant hook fish | source
-```
-
-### Nushell
-
-Nushell's `source` is resolved at parse time and cannot evaluate command
-output, so there is no `direnv-instant hook nu | source` one-liner. Use the
-Home Manager module (`programs.direnv-instant.enableNushellIntegration`),
-which sources the hook file shipped at
-`$out/share/direnv-instant/nushell.nu`.
-
-> **Note:** Nushell has no signal-trap mechanism, so the hook cannot react to
-> the daemon's SIGUSR1 like the other shells. It instead reloads the cached env
-> file on each prompt and before each command, so the environment appears once
-> direnv finishes — typically by the next prompt.
-
 ## Configuration
 
-### Module Options
-
-Both the Home Manager and NixOS modules support the following options under `programs.direnv-instant`:
+Module options under `programs.direnv-instant`:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `enable` | bool | `false` | Enable direnv-instant |
-| `package` | package | built-in | The direnv-instant package to use |
-| `enableBashIntegration` | bool | `true` | Enable Bash shell integration |
-| `enableFishIntegration` | bool | `true` | Enable Fish shell integration |
-| `enableZshIntegration` | bool | `true` | Enable Zsh shell integration |
-| `settings.use_cache` | bool | `true` | Enable cached environment loading for instant prompts |
-| `settings.mux_delay` | int | `4` | Delay in seconds before spawning multiplexer pane |
-| `settings.kitty_launch_args` | listOf str | `["--location" "vsplit" "--keep-focus" "--self"]` | Arguments passed to `kitty launch` before the watch command |
-| `settings.debug_log` | string | `null` | Path to debug log file for daemon output |
+| `package` | package | built-in | Package to use |
+| `enableBashIntegration` | bool | `true` | Install bash hook |
+| `enableZshIntegration` | bool | `true` | Install zsh hook |
+| `enableFishIntegration` | bool | `true` | Install fish hook |
+| `settings.use_cache` | bool | `true` | Apply cached env instantly on prompt |
+| `settings.mux_delay` | int | `4` | Seconds before opening a multiplexer pane |
+| `settings.kitty_launch_args` | listOf str | `["--location" "vsplit" "--keep-focus" "--self"]` | Args passed to `kitty launch` |
+| `settings.debug_log` | string | `null` | Path to daemon debug log |
 
-The Home Manager module additionally supports:
+Home Manager only:
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enableKittyIntegration` | bool | `config.programs.kitty.enable` | Enable Kitty terminal integration |
-| `enableNushellIntegration` | bool | `true` | Enable Nushell integration |
+| `enableNushellIntegration` | bool | `true` | Install nushell hook |
+| `enableKittyIntegration` | bool | `config.programs.kitty.enable` | Configure kitty remote control |
 
-### Environment Variables
+Outside the modules, the same settings are read from environment variables:
+`DIRENV_INSTANT_USE_CACHE`, `DIRENV_INSTANT_MUX_DELAY`,
+`DIRENV_INSTANT_KITTY_LAUNCH_ARGS` (newline-separated), `DIRENV_INSTANT_DEBUG_LOG`.
 
-- `DIRENV_INSTANT_USE_CACHE`: Enable cached environment loading for instant prompts (default: 1). Set to 0 to disable caching.
-- `DIRENV_INSTANT_MUX_DELAY`: Delay in seconds before spawning multiplexer pane (default: 4)
-- `DIRENV_INSTANT_KITTY_LAUNCH_ARGS`: Newline-separated arguments passed to `kitty launch` before the watch command (default: `--location`, `vsplit`, `--keep-focus`, `--self`)
-- `DIRENV_INSTANT_DEBUG_LOG`: Path to debug log file for daemon output
+## How is this different from lorri?
 
-## FAQ
-
-### How does direnv-instant differ from lorri?
-
-While both tools provide automatic environment rebuilding for Nix projects, direnv-instant offers several key usability improvements:
-
-- **Built-in visibility**: After 4 seconds (configurable), direnv-instant automatically spawns a tmux/zellij split pane showing direnv output. You don't need to separately monitor journal logs to see what's happening.
-- **Transparent rebuilds**: With lorri, you have to actively watch the journal to know if it's doing heavy rebuilds. direnv-instant makes this visible by default in your terminal.
-- **Interruptible**: Unlike lorri, you can ctrl-c to interrupt operations when needed.
-- **Shell integration focused**: direnv-instant is specifically designed as a drop-in replacement for direnv's shell integration, working with any direnv-compatible project.
+Both run nix evaluation in the background. direnv-instant shows you what's
+happening: after a few seconds it opens a multiplexer pane with direnv's output
+instead of making you tail journal logs, and you can ctrl-c a stuck rebuild. It
+also works with any direnv `.envrc`, not just Nix shells.
 
 ## License
 
