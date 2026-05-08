@@ -2,6 +2,7 @@ use crate::daemon::{
     DaemonContext, direnv_export_command, get_socket_path, notify_daemon, start_daemon, stop_daemon,
 };
 use crate::mux::Multiplexer;
+use crate::nushell;
 use crate::shell::Shell;
 use nix::unistd::getppid;
 use std::env;
@@ -10,12 +11,18 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 pub fn run() {
-    let direnv = "direnv";
     let shell = Shell::from_env();
     let parent_pid = env::var("DIRENV_INSTANT_SHELL_PID")
         .ok()
         .and_then(|s| s.parse().ok())
         .unwrap_or_else(|| getppid().as_raw());
+
+    if shell == Shell::Nushell {
+        nushell::run(parent_pid, find_envrc);
+        return;
+    }
+
+    let direnv = "direnv";
 
     // Find .envrc directory
     let envrc_dir = match find_envrc() {

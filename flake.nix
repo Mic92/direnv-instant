@@ -46,6 +46,7 @@
                 clippy
                 rust-analyzer
                 fish
+                nushell
               ];
             };
 
