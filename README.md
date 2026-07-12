@@ -78,6 +78,11 @@ fish (`~/.config/fish/config.fish`):
 direnv-instant hook fish | source
 ```
 
+fish note: the nix direnv package ships `share/fish/vendor_conf.d/direnv.fish`,
+which fish auto-loads even though no hook line appears in your config. The
+direnv-instant hook unregisters those handlers, so the `config.fish` line above
+is enough.
+
 nushell: there's no `hook nu | source` one-liner because nushell's `source` is
 parse-time only. The hook ships at `share/direnv-instant/nushell.nu`; the
 home-manager module sources it for you when

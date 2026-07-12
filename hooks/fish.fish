@@ -1,6 +1,10 @@
 # direnv-instant.fish - Non-blocking direnv integration for fish
 # Provides instant prompts by running direnv asynchronously in the background
 
+# direnv's classic hook may auto-load from a vendor_conf.d file (e.g. the nix
+# package) and would block every prompt alongside us; unregister it.
+functions -e __direnv_export_eval __direnv_export_eval_2 __direnv_cd_hook
+
 # Global state variables
 set -g __DIRENV_INSTANT_ENV_FILE ""
 set -g __DIRENV_INSTANT_STDERR_FILE ""
