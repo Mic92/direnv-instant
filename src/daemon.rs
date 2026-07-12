@@ -73,6 +73,7 @@ fn create_temp_file(runtime_dir: &Path, prefix: &str) -> std::io::Result<PathBuf
 
 pub struct DaemonContext {
     pub parent_pid: i32,
+    pub runtime_dir: PathBuf,
     pub socket_path: PathBuf,
     pub env_file: PathBuf,
     pub stderr_file: PathBuf,
@@ -91,19 +92,25 @@ impl DaemonContext {
         // Ensure owner-only permissions even if directory already exists
         std::fs::set_permissions(&runtime_dir, PermissionsExt::from_mode(0o700))?;
 
-        let temp_file = create_temp_file(&runtime_dir, "env")?;
-        let temp_stderr = create_temp_file(&runtime_dir, "env_stderr")?;
-
         Ok(Self {
             parent_pid,
             socket_path: runtime_dir.join("daemon.sock"),
             env_file: runtime_dir.join("env"),
             stderr_file: runtime_dir.join("env.stderr"),
-            temp_file,
-            temp_stderr,
+            // Filled in by create_temp_files() in the daemon process, so
+            // per-prompt "already running" starts don't leak temp files.
+            temp_file: PathBuf::new(),
+            temp_stderr: PathBuf::new(),
+            runtime_dir,
             multiplexer: Multiplexer::detect(),
             shell,
         })
+    }
+
+    fn create_temp_files(&mut self) -> std::io::Result<()> {
+        self.temp_file = create_temp_file(&self.runtime_dir, "env")?;
+        self.temp_stderr = create_temp_file(&self.runtime_dir, "env_stderr")?;
+        Ok(())
     }
 }
 
@@ -130,7 +137,7 @@ pub fn stop_daemon(socket_path: &Path) {
     let _ = send_daemon_message(socket_path, "STOP\n");
 }
 
-pub fn start_daemon(direnv_cmd: &str, ctx: &DaemonContext) {
+pub fn start_daemon(direnv_cmd: &str, mut ctx: DaemonContext) {
     // Check if daemon already running
     if ctx.socket_path.exists() {
         if UnixStream::connect(&ctx.socket_path).is_ok() {
@@ -164,7 +171,7 @@ pub fn start_daemon(direnv_cmd: &str, ctx: &DaemonContext) {
                         dup2_stderr(&devnull).expect("Failed to redirect stderr");
                     }
 
-                    run_direnv(direnv_cmd, ctx);
+                    run_direnv(direnv_cmd, &mut ctx);
                 }
                 Err(e) => {
                     eprintln!("direnv-instant: Second fork failed: {}", e);
@@ -234,7 +241,11 @@ fn handle_socket_commands(
     }
 }
 
-fn run_direnv(direnv_cmd: &str, ctx: &DaemonContext) {
+fn run_direnv(direnv_cmd: &str, ctx: &mut DaemonContext) {
+    if let Err(e) = ctx.create_temp_files() {
+        eprintln!("direnv-instant: Failed to create temp files: {}", e);
+        std::process::exit(1);
+    }
     let _cleanup = Cleanup(ctx);
 
     let listener = UnixListener::bind(&ctx.socket_path).expect("Failed to bind socket");

@@ -59,7 +59,7 @@ pub fn run(parent_pid: i32, find_envrc: impl FnOnce() -> Option<PathBuf>) {
     let ctx = match DaemonContext::new(parent_pid, envrc_dir, Shell::Nushell) {
         Ok(ctx) => ctx,
         Err(e) => {
-            eprintln!("direnv-instant: Failed to create temp files: {}", e);
+            eprintln!("direnv-instant: Failed to create runtime dir: {}", e);
             emit_record(&state);
             return;
         }
@@ -76,7 +76,7 @@ pub fn run(parent_pid: i32, find_envrc: impl FnOnce() -> Option<PathBuf>) {
     let already_running = ctx.socket_path.exists() && UnixStream::connect(&ctx.socket_path).is_ok();
     emit_record(&state);
     if !already_running {
-        start_daemon(direnv, &ctx);
+        start_daemon(direnv, ctx);
     }
 }
 
