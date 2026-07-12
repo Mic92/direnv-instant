@@ -15,11 +15,12 @@ def _direnv_instant_load_file [path: string]: nothing -> record {
 }
 
 def --env _direnv_instant_apply [data: record] {
+    let entries = ($data | transpose key val)
     let to_load = (
-        $data | items {|k v| {key: $k, val: $v} } | where val != null
+        $entries | where val != null
         | reduce -f {} {|it acc| $acc | upsert $it.key $it.val }
     )
-    let to_unset = ($data | items {|k v| if $v == null { $k } } | compact)
+    let to_unset = ($entries | where val == null | get key)
     for k in $to_unset { hide-env --ignore-errors $k }
     if not ($to_load | is-empty) { load-env $to_load }
 }
