@@ -1,4 +1,12 @@
 use std::env;
+use std::io::Write;
+
+/// Write a line to stdout, ignoring errors. The hook reads our output via
+/// `start | source`; if the reader vanishes (ctrl-c, closed pane) the write
+/// fails with EPIPE, which is harmless and must not panic (issue #129).
+pub fn emit(args: std::fmt::Arguments) {
+    let _ = writeln!(std::io::stdout(), "{}", args);
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Shell {
@@ -34,8 +42,8 @@ impl Shell {
     pub fn export_var(self, name: &str, value: &str) {
         let escaped = value.replace('\'', r"'\''");
         match self {
-            Shell::Fish => println!("set -gx {} '{}'", name, escaped),
-            Shell::Bash | Shell::Zsh => println!("export {}='{}'", name, escaped),
+            Shell::Fish => emit(format_args!("set -gx {} '{}'", name, escaped)),
+            Shell::Bash | Shell::Zsh => emit(format_args!("export {}='{}'", name, escaped)),
             Shell::Nushell => unreachable!("nushell uses crate::nushell"),
         }
     }
@@ -43,8 +51,8 @@ impl Shell {
     /// Print an unset statement for this shell
     pub fn unset_var(self, name: &str) {
         match self {
-            Shell::Fish => println!("set -e {}", name),
-            Shell::Bash | Shell::Zsh => println!("unset {}", name),
+            Shell::Fish => emit(format_args!("set -e {}", name)),
+            Shell::Bash | Shell::Zsh => emit(format_args!("unset {}", name)),
             Shell::Nushell => unreachable!("nushell uses crate::nushell"),
         }
     }
