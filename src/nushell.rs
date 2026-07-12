@@ -81,17 +81,20 @@ pub fn run(parent_pid: i32, find_envrc: impl FnOnce() -> Option<PathBuf>) {
 }
 
 fn emit_record(state: &[(&str, Option<String>)]) {
-    print!("{{");
+    use std::fmt::Write;
+
+    let mut record = String::from("{");
     for (i, (k, v)) in state.iter().enumerate() {
         if i > 0 {
-            print!(",");
+            record.push(',');
         }
-        match v {
-            Some(s) => print!(r#""{}":"{}""#, json_escape(k), json_escape(s)),
-            None => print!(r#""{}":null"#, json_escape(k)),
-        }
+        let _ = match v {
+            Some(s) => write!(record, r#""{}":"{}""#, json_escape(k), json_escape(s)),
+            None => write!(record, r#""{}":null"#, json_escape(k)),
+        };
     }
-    println!("}}");
+    record.push('}');
+    crate::shell::emit(format_args!("{}", record));
 }
 
 /// Run `direnv export json` and write its stdout to *target*, or to a
