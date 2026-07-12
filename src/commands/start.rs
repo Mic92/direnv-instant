@@ -56,7 +56,7 @@ pub fn run() {
     let ctx = match DaemonContext::new(parent_pid, envrc_dir, shell) {
         Ok(ctx) => ctx,
         Err(e) => {
-            eprintln!("direnv-instant: Failed to create temp files: {}", e);
+            eprintln!("direnv-instant: Failed to create runtime dir: {}", e);
             run_direnv_sync(direnv, shell, true);
             return;
         }
@@ -75,7 +75,7 @@ pub fn run() {
         return;
     }
 
-    start_daemon(direnv, &ctx);
+    start_daemon(direnv, ctx);
 }
 
 fn find_envrc() -> Option<PathBuf> {
