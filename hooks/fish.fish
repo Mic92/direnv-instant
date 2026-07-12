@@ -20,6 +20,11 @@ function _direnv_handler --on-signal USR1
     if test -n "$__DIRENV_INSTANT_ENV_FILE" -a -f "$__DIRENV_INSTANT_ENV_FILE"
         source "$__DIRENV_INSTANT_ENV_FILE"
     end
+
+    # Redraw the prompt; without this the shell looks hung after the replay.
+    if status is-interactive
+        commandline -f repaint
+    end
 end
 
 # Main hook called on directory changes and prompts
