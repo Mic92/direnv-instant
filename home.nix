@@ -2,7 +2,6 @@
   pkgs,
   lib,
   config,
-  options,
   ...
 }:
 let
@@ -29,12 +28,6 @@ let
     package
     str
     ;
-
-  # On stable home-manager (<= 24.11), enableFishIntegration is read-only
-  # because direnv ships fish vendor functions that auto-load.
-  # On unstable home-manager, this was fixed and we can disable it.
-  # See: https://github.com/Mic92/direnv-instant/issues/35
-  fishIntegrationReadOnly = options.programs.direnv.enableFishIntegration.readOnly or false;
 in
 {
   options.programs.direnv-instant = {
@@ -123,10 +116,6 @@ in
         enableBashIntegration = lib.mkIf cfg.enableBashIntegration (lib.mkForce false);
         enableZshIntegration = lib.mkIf cfg.enableZshIntegration (lib.mkForce false);
         enableNushellIntegration = lib.mkIf cfg.enableNushellIntegration (lib.mkForce false);
-      }
-      // lib.optionalAttrs (!fishIntegrationReadOnly) {
-        # Only disable fish integration if the option is not read-only (unstable home-manager)
-        # On stable home-manager (<= 25.11), both direnv and direnv-instant hooks run for fish.
         enableFishIntegration = lib.mkIf cfg.enableFishIntegration (lib.mkForce false);
       };
 
