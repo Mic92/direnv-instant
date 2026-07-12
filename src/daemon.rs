@@ -133,8 +133,16 @@ pub fn notify_daemon(socket_path: &Path, shell_pid: i32) -> bool {
     send_daemon_message(socket_path, &format!("NOTIFY {shell_pid}\n")).is_ok()
 }
 
+/// Force the daemon to stop, regardless of which shells are registered.
 pub fn stop_daemon(socket_path: &Path) {
     let _ = send_daemon_message(socket_path, "STOP\n");
+}
+
+/// Detach one shell from the daemon. The daemon only stops once no
+/// registered shells remain, so one shell exiting doesn't kill an
+/// evaluation other shells still wait on (issue #130).
+pub fn detach_daemon(socket_path: &Path, shell_pid: i32) {
+    let _ = send_daemon_message(socket_path, &format!("STOP {shell_pid}\n"));
 }
 
 pub fn start_daemon(direnv_cmd: &str, mut ctx: DaemonContext) {
@@ -204,7 +212,23 @@ fn handle_socket_commands(
         if reader.read_line(&mut line).is_ok() {
             if let Some(stripped) = line.strip_prefix("NOTIFY ") {
                 if let Ok(pid) = stripped.trim().parse::<i32>() {
-                    notify_pids.lock().expect("Failed to lock").push(pid);
+                    let mut pids = notify_pids.lock().expect("Failed to lock");
+                    if !pids.contains(&pid) {
+                        pids.push(pid);
+                    }
+                }
+            } else if let Some(stripped) = line.strip_prefix("STOP ") {
+                // Pid-scoped stop: ignore pids we never registered, shut
+                // down when the last registered shell detaches.
+                if let Ok(pid) = stripped.trim().parse::<i32>() {
+                    let mut pids = notify_pids.lock().expect("Failed to lock");
+                    if let Some(i) = pids.iter().position(|p| *p == pid) {
+                        pids.remove(i);
+                        if pids.is_empty() {
+                            should_stop.store(true, Ordering::Relaxed);
+                            break;
+                        }
+                    }
                 }
             } else if line.starts_with("STOP") {
                 should_stop.store(true, Ordering::Relaxed);

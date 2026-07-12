@@ -1,5 +1,6 @@
 use crate::daemon::{
-    DaemonContext, direnv_export_command, get_socket_path, notify_daemon, start_daemon, stop_daemon,
+    DaemonContext, detach_daemon, direnv_export_command, get_socket_path, notify_daemon,
+    start_daemon,
 };
 use crate::mux::Multiplexer;
 use crate::nushell;
@@ -38,7 +39,9 @@ pub fn run() {
     if let Ok(current) = env::var("__DIRENV_INSTANT_CURRENT_DIR") {
         let current_dir = PathBuf::from(&current);
         if current_dir != envrc_dir {
-            stop_daemon(&get_socket_path(&current_dir));
+            // Detach rather than force-stop: other shells in the old
+            // directory may still be waiting on that daemon.
+            detach_daemon(&get_socket_path(&current_dir), parent_pid);
         }
     }
     shell.export_var(
