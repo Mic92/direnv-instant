@@ -5,3 +5,4 @@ edition = "2024"
 
 [dependencies]
 nix = { version = "0.31", features = ["process", "signal", "term", "fs", "poll", "socket", "uio"] }
+tinyjson = "2.5.1"
