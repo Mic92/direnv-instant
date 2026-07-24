@@ -13,13 +13,13 @@ when it's done. The shell trap then loads the new environment. On revisit, a
 cached environment from the previous run is applied instantly while the daemon
 revalidates in the background.
 
-If direnv takes longer than 4 seconds (configurable), a tmux/zellij/wezterm/kitty
+If direnv takes longer than 4 seconds (configurable), a tmux/zellij/wezterm/kitty/herdr
 split opens showing direnv's output so you can see what it's doing — and ctrl-c
 it if needed.
 
 Supported shells: bash, zsh, fish, nushell.
 Supported multiplexers: tmux, zellij, wezterm, kitty (kitty needs the
-home-manager module).
+home-manager module), herdr.
 
 If you use Nix, pair this with
 [nix-direnv](https://github.com/nix-community/nix-direnv). It caches Nix
