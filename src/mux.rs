@@ -1,8 +1,11 @@
 use std::{
+    collections::HashMap,
     env,
     io::{self, Error},
     process::Command,
 };
+
+use tinyjson::JsonValue;
 
 use crate::daemon::DaemonContext;
 
@@ -101,6 +104,7 @@ impl Multiplexer {
 
 /// Herdr needs two steps: split a shell pane, then exec the watcher in it.
 fn spawn_herdr(bin: &str, ctx: &DaemonContext) -> io::Result<()> {
+    let ratio = format!("{:.3}", herdr_split_ratio().unwrap_or(0.25));
     let output = Command::new("herdr")
         .args([
             "pane",
@@ -109,6 +113,8 @@ fn spawn_herdr(bin: &str, ctx: &DaemonContext) -> io::Result<()> {
             "--direction",
             "down",
             "--no-focus",
+            "--ratio",
+            &ratio,
         ])
         .output()?;
     if !output.status.success() {
@@ -135,11 +141,46 @@ fn spawn_herdr(bin: &str, ctx: &DaemonContext) -> io::Result<()> {
         .map(|_| ())
 }
 
+/// Herdr splits by fraction, not rows: compute the fraction for ~PANE_HEIGHT rows.
+fn herdr_split_ratio() -> Option<f64> {
+    let pane_id = env::var("HERDR_PANE_ID").ok()?;
+    let output = Command::new("herdr")
+        .args(["pane", "layout", "--current"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let json = String::from_utf8_lossy(&output.stdout);
+    let rows = parse_pane_height(&json, &pane_id)?;
+    let target: f64 = PANE_HEIGHT.parse().ok()?;
+    Some((target / rows).clamp(0.1, 0.5))
+}
+
+/// Safe nested object lookup: tinyjson's `Index` panics on missing keys.
+fn json_get<'a>(value: &'a JsonValue, path: &[&str]) -> Option<&'a JsonValue> {
+    path.iter().try_fold(value, |v, key| {
+        v.get::<HashMap<String, JsonValue>>()?.get(*key)
+    })
+}
+
+fn parse_pane_height(json: &str, pane_id: &str) -> Option<f64> {
+    let value: JsonValue = json.parse().ok()?;
+    let panes: &Vec<JsonValue> = json_get(&value, &["result", "layout", "panes"])?.get()?;
+    let pane = panes.iter().find(|p| {
+        json_get(p, &["pane_id"])
+            .and_then(JsonValue::get::<String>)
+            .is_some_and(|id| id == pane_id)
+    })?;
+    let rows: f64 = *json_get(pane, &["rect", "height"])?.get()?;
+    Some(rows).filter(|&rows| rows > 0.0)
+}
+
 fn parse_pane_id(json: &str) -> Option<String> {
-    let needle = "\"pane_id\":\"";
-    let start = json.find(needle)? + needle.len();
-    let end = json[start..].find('"')? + start;
-    Some(json[start..end].to_string())
+    let value: JsonValue = json.parse().ok()?;
+    json_get(&value, &["result", "pane", "pane_id"])?
+        .get::<String>()
+        .cloned()
 }
 
 fn shell_quote(s: &str) -> String {
