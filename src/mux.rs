@@ -104,7 +104,7 @@ impl Multiplexer {
 
 /// Herdr needs two steps: split a shell pane, then exec the watcher in it.
 fn spawn_herdr(bin: &str, ctx: &DaemonContext) -> io::Result<()> {
-    let ratio = format!("{:.3}", herdr_split_ratio().unwrap_or(0.25));
+    let ratio = format!("{:.3}", herdr_split_ratio().unwrap_or(0.75));
     let output = Command::new("herdr")
         .args([
             "pane",
@@ -141,7 +141,8 @@ fn spawn_herdr(bin: &str, ctx: &DaemonContext) -> io::Result<()> {
         .map(|_| ())
 }
 
-/// Herdr splits by fraction, not rows: compute the fraction for ~PANE_HEIGHT rows.
+/// Herdr's split ratio is the fraction the original pane keeps:
+/// leave ~PANE_HEIGHT rows for the new watcher pane.
 fn herdr_split_ratio() -> Option<f64> {
     let pane_id = env::var("HERDR_PANE_ID").ok()?;
     let output = Command::new("herdr")
@@ -154,7 +155,7 @@ fn herdr_split_ratio() -> Option<f64> {
     let json = String::from_utf8_lossy(&output.stdout);
     let rows = parse_pane_height(&json, &pane_id)?;
     let target: f64 = PANE_HEIGHT.parse().ok()?;
-    Some((target / rows).clamp(0.1, 0.5))
+    Some((1.0 - target / rows).clamp(0.5, 0.9))
 }
 
 /// Safe nested object lookup: tinyjson's `Index` panics on missing keys.
