@@ -2,6 +2,7 @@ use std::{
     collections::HashMap,
     env,
     io::{self, Error},
+    path::PathBuf,
     process::Command,
 };
 
@@ -22,6 +23,7 @@ pub enum Multiplexer {
     Wezterm,
     Kitty,
     Herdr,
+    Rex,
 }
 
 impl Multiplexer {
@@ -46,6 +48,10 @@ impl Multiplexer {
             return Some(Self::Herdr);
         }
 
+        if env::var("TERM_PROGRAM").is_ok_and(|x| x == "rex") && env::var("REX_BLOCK").is_ok() {
+            return Some(Self::Rex);
+        }
+
         None
     }
 
@@ -60,6 +66,7 @@ impl Multiplexer {
 
         match self {
             Multiplexer::Herdr => return spawn_herdr(&bin, ctx),
+            Multiplexer::Rex => return spawn_rex(&bin, ctx),
             Multiplexer::Tmux => {
                 command = Command::new("tmux");
                 command.args(["split-window", "-d", "-l", PANE_HEIGHT]);
@@ -141,6 +148,98 @@ fn spawn_herdr(bin: &str, ctx: &DaemonContext) -> io::Result<()> {
         .map(|_| ())
 }
 
+/// Rex needs two steps too: split below the shell's block, then size the split.
+/// The app resets `rex split --ratio` to half when it shows the split, so a resize sizes it afterwards.
+fn spawn_rex(bin: &str, ctx: &DaemonContext) -> io::Result<()> {
+    let block = env::var("REX_BLOCK").map_err(|e| Error::other(e.to_string()))?;
+    let ratio = rex_split_ratio(&block).unwrap_or(0.75);
+    let temp_stderr = ctx.temp_stderr.to_string_lossy();
+    let socket_path = ctx.socket_path.to_string_lossy();
+    let output = rex_command()
+        .args([
+            "split",
+            "--json",
+            "--block",
+            &block,
+            "--split=below",
+            "--focus=false",
+            "--shell=none",
+            "--",
+            bin,
+            "watch",
+            &temp_stderr,
+            &socket_path,
+        ])
+        .output()?;
+    if !output.status.success() {
+        return Err(Error::other(format!(
+            "rex split failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+
+    let watcher = parse_rex_block_id(&String::from_utf8_lossy(&output.stdout))
+        .ok_or_else(|| Error::other("rex split: no block id in output"))?;
+
+    // Only the resize needs the session, so read it after the split, which
+    // works without it and still gives a pane when it is missing.
+    let session = env::var("REX_SESSION").map_err(|e| Error::other(e.to_string()))?;
+    let args = JsonValue::from(HashMap::from([
+        ("session_id".to_string(), JsonValue::from(session)),
+        ("before_block_id".to_string(), JsonValue::from(block)),
+        ("after_block_id".to_string(), JsonValue::from(watcher)),
+        (
+            "direction".to_string(),
+            JsonValue::from("vertical".to_string()),
+        ),
+        ("ratio".to_string(), JsonValue::from(ratio)),
+    ]))
+    .stringify()
+    .map_err(|e| Error::other(e.to_string()))?;
+    let output = rex_command()
+        .args(["api", "call", "session.resize_pane", &args])
+        .output()?;
+    if !output.status.success() {
+        return Err(Error::other(format!(
+            "rex resize failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        )));
+    }
+    Ok(())
+}
+
+/// Rex exports `REX_BIN_DIR`, so its CLI is found even when it is not on PATH.
+/// `--autostart=false` keeps the detached daemon from starting a server after Rex's has stopped.
+fn rex_command() -> Command {
+    let rex = env::var_os("REX_BIN_DIR")
+        .map(|dir| PathBuf::from(dir).join("rex"))
+        .filter(|path| path.is_file())
+        .unwrap_or_else(|| PathBuf::from("rex"));
+    let mut command = Command::new(rex);
+    command.arg("--autostart=false");
+    command
+}
+
+/// Rex's split ratio is the fraction the shell's block keeps:
+/// leave ~PANE_HEIGHT rows for the new watcher pane.
+fn rex_split_ratio(block: &str) -> Option<f64> {
+    let output = rex_command()
+        .args([
+            "do",
+            "--block",
+            block,
+            "com.superlogical.terminal.size",
+            "--json",
+        ])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let value: JsonValue = String::from_utf8_lossy(&output.stdout).parse().ok()?;
+    split_ratio(*json_get(&value, &["rows"])?.get()?)
+}
+
 /// Herdr's split ratio is the fraction the original pane keeps:
 /// leave ~PANE_HEIGHT rows for the new watcher pane.
 fn herdr_split_ratio() -> Option<f64> {
@@ -153,7 +252,14 @@ fn herdr_split_ratio() -> Option<f64> {
         return None;
     }
     let json = String::from_utf8_lossy(&output.stdout);
-    let rows = parse_pane_height(&json, &pane_id)?;
+    split_ratio(parse_pane_height(&json, &pane_id)?)
+}
+
+/// The fraction a pane of `rows` rows keeps when ~PANE_HEIGHT rows go to the watcher pane.
+fn split_ratio(rows: f64) -> Option<f64> {
+    if rows <= 0.0 {
+        return None;
+    }
     let target: f64 = PANE_HEIGHT.parse().ok()?;
     Some((1.0 - target / rows).clamp(0.5, 0.9))
 }
@@ -173,8 +279,7 @@ fn parse_pane_height(json: &str, pane_id: &str) -> Option<f64> {
             .and_then(JsonValue::get::<String>)
             .is_some_and(|id| id == pane_id)
     })?;
-    let rows: f64 = *json_get(pane, &["rect", "height"])?.get()?;
-    Some(rows).filter(|&rows| rows > 0.0)
+    json_get(pane, &["rect", "height"])?.get().copied()
 }
 
 fn parse_pane_id(json: &str) -> Option<String> {
@@ -182,6 +287,12 @@ fn parse_pane_id(json: &str) -> Option<String> {
     json_get(&value, &["result", "pane", "pane_id"])?
         .get::<String>()
         .cloned()
+}
+
+fn parse_rex_block_id(json: &str) -> Option<String> {
+    let value: JsonValue = json.parse().ok()?;
+    let ids: &Vec<JsonValue> = json_get(&value, &["block_ids"])?.get()?;
+    ids.first()?.get::<String>().cloned()
 }
 
 fn shell_quote(s: &str) -> String {

@@ -376,7 +376,12 @@ fn copy_pty_to_logfile(
                     && total_bytes > 0
                     && let Some(multiplexer) = ctx.multiplexer
                 {
-                    let _ = multiplexer.spawn(ctx);
+                    if let Err(e) = multiplexer.spawn(ctx) {
+                        eprintln!(
+                            "direnv-instant: Failed to spawn {:?} watch pane: {}",
+                            multiplexer, e
+                        );
+                    }
                     mux_spawned = true;
                 }
                 continue;
