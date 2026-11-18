@@ -25,6 +25,7 @@ _direnv_handler() {
 
 # Main hook called on directory changes and prompts
 _direnv_hook() {
+  export DIRENV_INSTANT_SHELL="bash"
   export DIRENV_INSTANT_SHELL_PID=$$
 
   # Load cached environment immediately if available and caching is enabled
