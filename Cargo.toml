@@ -4,5 +4,5 @@ version = "1.3.0"
 edition = "2024"
 
 [dependencies]
-nix = { version = "0.31", features = ["process", "signal", "term", "fs", "poll", "socket", "uio"] }
+nix = { version = "0.32", features = ["process", "signal", "term", "fs", "poll", "socket", "uio"] }
 tinyjson = "2.5.1"
