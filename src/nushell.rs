@@ -105,9 +105,11 @@ fn capture_direnv_export(
     target: Option<&Path>,
 ) -> Option<PathBuf> {
     let mut cmd = direnv_export_command(direnv, Shell::Nushell);
-    if !show_errors {
-        cmd.stderr(Stdio::null());
-    }
+    cmd.stderr(if show_errors {
+        Stdio::inherit()
+    } else {
+        Stdio::null()
+    });
     let out = cmd.output().ok()?;
     if !out.status.success() || out.stdout.is_empty() {
         return None;
